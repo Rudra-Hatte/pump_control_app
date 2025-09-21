@@ -1,7 +1,10 @@
 package com.engineeringbay.pumpcontrol
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
@@ -35,6 +38,18 @@ class MainActivity : AppCompatActivity() {
     private var isAutoMode = false
 
     private lateinit var databaseHelper: DatabaseHelper
+    
+    // Broadcast receiver for status updates from SMS confirmations
+    private val statusUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == SmsHandler.ACTION_STATUS_UPDATE) {
+                isPumpOn = intent.getBooleanExtra(SmsHandler.EXTRA_PUMP_STATUS, false)
+                isAutoMode = intent.getBooleanExtra(SmsHandler.EXTRA_AUTO_STATUS, false)
+                updatePumpStatus()
+                updateAutoModeButton()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +69,10 @@ class MainActivity : AppCompatActivity() {
 
         // Update initial status
         updatePumpStatus()
+        
+        // Register broadcast receiver for status updates
+        val filter = IntentFilter(SmsHandler.ACTION_STATUS_UPDATE)
+        registerReceiver(statusUpdateReceiver, filter)
     }
 
     private fun initializeViews() {
@@ -71,23 +90,20 @@ class MainActivity : AppCompatActivity() {
     private fun setClickListeners() {
         btnPumpOn.setOnClickListener {
             sendPumpCommand(SMSManager.COMMAND_PUMP_ON, "PUMP_COMMAND", "ON")
-            isPumpOn = true
-            updatePumpStatus()
+            // Don't update UI immediately - wait for SMS confirmation
         }
 
         btnPumpOff.setOnClickListener {
             sendPumpCommand(SMSManager.COMMAND_PUMP_OFF, "PUMP_COMMAND", "OFF")
-            isPumpOn = false
-            updatePumpStatus()
+            // Don't update UI immediately - wait for SMS confirmation
         }
 
         btnAutoMode.setOnClickListener {
-            isAutoMode = !isAutoMode
-            val command = if (isAutoMode) SMSManager.COMMAND_AUTO_ON else SMSManager.COMMAND_AUTO_OFF
-            val status = if (isAutoMode) "ON" else "OFF"
+            val command = if (!isAutoMode) SMSManager.COMMAND_AUTO_ON else SMSManager.COMMAND_AUTO_OFF
+            val status = if (!isAutoMode) "ON" else "OFF"
 
             sendPumpCommand(command, "AUTO_MODE", status)
-            updateAutoModeButton()
+            // Don't update UI immediately - wait for SMS confirmation
         }
 
         btnDataLog.setOnClickListener {
@@ -168,5 +184,11 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("No", null)
             .show()
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // Unregister broadcast receiver
+        unregisterReceiver(statusUpdateReceiver)
     }
 }
