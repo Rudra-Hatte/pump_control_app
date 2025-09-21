@@ -9,18 +9,21 @@ object SMSManager {
     // Replace with your actual GSM module phone number
     private const val GSM_MODULE_NUMBER = "+1234567890"
 
-    // SMS Commands
-    const val COMMAND_PUMP_ON = "PUMP_ON"
-    const val COMMAND_PUMP_OFF = "PUMP_OFF"
-    const val COMMAND_AUTO_ON = "AUTO_ON"
-    const val COMMAND_AUTO_OFF = "AUTO_OFF"
+    // SMS Commands (4-bit codes as required)
+    const val COMMAND_PUMP_ON = "0001"      // Pump ON
+    const val COMMAND_PUMP_OFF = "0000"     // Pump OFF
+    const val COMMAND_AUTO_ON = "1101"      // Auto Mode ON + Pump ON
+    const val COMMAND_AUTO_OFF = "0100"     // Auto Mode + Pump OFF
 
     fun sendSMS(context: Context, message: String) {
         try {
+            // Get device number from SharedPreferences
+            val deviceNumber = RegistrationActivity.getDeviceNumber(context)
+            
             val smsManager = SmsManager.getDefault()
-            smsManager.sendTextMessage(GSM_MODULE_NUMBER, null, message, null, null)
+            smsManager.sendTextMessage(deviceNumber, null, message, null, null)
 
-            Toast.makeText(context, "SMS sent: $message", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "SMS sent: $message to $deviceNumber", Toast.LENGTH_SHORT).show()
 
         } catch (e: Exception) {
             Toast.makeText(context, "Failed to send SMS: ${e.message}", Toast.LENGTH_LONG).show()
@@ -28,5 +31,7 @@ object SMSManager {
         }
     }
 
-    fun getGsmModuleNumber(): String = GSM_MODULE_NUMBER
+    fun getGsmModuleNumber(context: Context): String {
+        return RegistrationActivity.getDeviceNumber(context)
+    }
 }

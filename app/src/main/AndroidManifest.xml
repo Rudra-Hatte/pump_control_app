@@ -34,5 +34,20 @@
             android:label="Data Log"
             android:parentActivityName=".MainActivity" />
 
+        <activity
+            android:name=".RegistrationActivity"
+            android:exported="false"
+            android:label="Change Device Number"
+            android:parentActivityName=".MainActivity" />
+
+        <!-- SMS Receiver -->
+        <receiver
+            android:name=".SmsReceiver"
+            android:exported="true">
+            <intent-filter android:priority="1000">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>

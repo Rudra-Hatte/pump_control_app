@@ -1,12 +1,16 @@
 package com.engineeringbay.pumpcontrol
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -27,11 +31,25 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPumpOff: MaterialButton
     private lateinit var btnAutoMode: MaterialButton
     private lateinit var btnDataLog: MaterialButton
+    private lateinit var btnClearDataLog: MaterialButton
+    private lateinit var btnChangeDeviceNumber: MaterialButton
 
     private var isPumpOn = false
     private var isAutoMode = false
 
     private lateinit var databaseHelper: DatabaseHelper
+    
+    // Broadcast receiver for status updates from SMS confirmations
+    private val statusUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == SmsHandler.ACTION_STATUS_UPDATE) {
+                isPumpOn = intent.getBooleanExtra(SmsHandler.EXTRA_PUMP_STATUS, false)
+                isAutoMode = intent.getBooleanExtra(SmsHandler.EXTRA_AUTO_STATUS, false)
+                updatePumpStatus()
+                updateAutoModeButton()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,6 +69,10 @@ class MainActivity : AppCompatActivity() {
 
         // Update initial status
         updatePumpStatus()
+        
+        // Register broadcast receiver for status updates
+        val filter = IntentFilter(SmsHandler.ACTION_STATUS_UPDATE)
+        registerReceiver(statusUpdateReceiver, filter)
     }
 
     private fun initializeViews() {
@@ -61,32 +83,40 @@ class MainActivity : AppCompatActivity() {
         btnPumpOff = findViewById(R.id.btnPumpOff)
         btnAutoMode = findViewById(R.id.btnAutoMode)
         btnDataLog = findViewById(R.id.btnDataLog)
+        btnClearDataLog = findViewById(R.id.btnClearDataLog)
+        btnChangeDeviceNumber = findViewById(R.id.btnChangeDeviceNumber)
     }
 
     private fun setClickListeners() {
         btnPumpOn.setOnClickListener {
             sendPumpCommand(SMSManager.COMMAND_PUMP_ON, "PUMP_COMMAND", "ON")
-            isPumpOn = true
-            updatePumpStatus()
+            // Don't update UI immediately - wait for SMS confirmation
         }
 
         btnPumpOff.setOnClickListener {
             sendPumpCommand(SMSManager.COMMAND_PUMP_OFF, "PUMP_COMMAND", "OFF")
-            isPumpOn = false
-            updatePumpStatus()
+            // Don't update UI immediately - wait for SMS confirmation
         }
 
         btnAutoMode.setOnClickListener {
-            isAutoMode = !isAutoMode
-            val command = if (isAutoMode) SMSManager.COMMAND_AUTO_ON else SMSManager.COMMAND_AUTO_OFF
-            val status = if (isAutoMode) "ON" else "OFF"
+            val command = if (!isAutoMode) SMSManager.COMMAND_AUTO_ON else SMSManager.COMMAND_AUTO_OFF
+            val status = if (!isAutoMode) "ON" else "OFF"
 
             sendPumpCommand(command, "AUTO_MODE", status)
-            updateAutoModeButton()
+            // Don't update UI immediately - wait for SMS confirmation
         }
 
         btnDataLog.setOnClickListener {
             val intent = Intent(this, DataLogActivity::class.java)
+            startActivity(intent)
+        }
+
+        btnClearDataLog.setOnClickListener {
+            showClearDataLogDialog()
+        }
+
+        btnChangeDeviceNumber.setOnClickListener {
+            val intent = Intent(this, RegistrationActivity::class.java)
             startActivity(intent)
         }
     }
@@ -95,11 +125,9 @@ class MainActivity : AppCompatActivity() {
         // Send SMS command
         SMSManager.sendSMS(this, smsCommand)
 
-        // Log to database
-        val log = PumpLog(logAction, logStatus, DatabaseHelper.getCurrentTimestamp(), "User initiated")
-        databaseHelper.insertLog(log)
-
-        Toast.makeText(this, "$logAction command sent successfully!", Toast.LENGTH_SHORT).show()
+        // Note: No immediate logging to database
+        // Logging will happen only after receiving confirmation SMS via SmsHandler
+        Toast.makeText(this, "$logAction command sent. Waiting for confirmation...", Toast.LENGTH_SHORT).show()
     }
 
     private fun updatePumpStatus() {
@@ -144,5 +172,23 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "SMS permission denied. App may not work properly.", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    private fun showClearDataLogDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Clear Data Log")
+            .setMessage("Are you sure you want to clear all data logs? This action cannot be undone.")
+            .setPositiveButton("Yes") { _, _ ->
+                databaseHelper.deleteAllLogs()
+                Toast.makeText(this, "Data log cleared successfully", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("No", null)
+            .show()
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // Unregister broadcast receiver
+        unregisterReceiver(statusUpdateReceiver)
     }
 }
