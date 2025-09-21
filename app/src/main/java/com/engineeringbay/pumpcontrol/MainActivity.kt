@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -27,6 +28,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPumpOff: MaterialButton
     private lateinit var btnAutoMode: MaterialButton
     private lateinit var btnDataLog: MaterialButton
+    private lateinit var btnClearDataLog: MaterialButton
+    private lateinit var btnChangeDeviceNumber: MaterialButton
 
     private var isPumpOn = false
     private var isAutoMode = false
@@ -61,6 +64,8 @@ class MainActivity : AppCompatActivity() {
         btnPumpOff = findViewById(R.id.btnPumpOff)
         btnAutoMode = findViewById(R.id.btnAutoMode)
         btnDataLog = findViewById(R.id.btnDataLog)
+        btnClearDataLog = findViewById(R.id.btnClearDataLog)
+        btnChangeDeviceNumber = findViewById(R.id.btnChangeDeviceNumber)
     }
 
     private fun setClickListeners() {
@@ -89,17 +94,24 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, DataLogActivity::class.java)
             startActivity(intent)
         }
+
+        btnClearDataLog.setOnClickListener {
+            showClearDataLogDialog()
+        }
+
+        btnChangeDeviceNumber.setOnClickListener {
+            val intent = Intent(this, RegistrationActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     private fun sendPumpCommand(smsCommand: String, logAction: String, logStatus: String) {
         // Send SMS command
         SMSManager.sendSMS(this, smsCommand)
 
-        // Log to database
-        val log = PumpLog(logAction, logStatus, DatabaseHelper.getCurrentTimestamp(), "User initiated")
-        databaseHelper.insertLog(log)
-
-        Toast.makeText(this, "$logAction command sent successfully!", Toast.LENGTH_SHORT).show()
+        // Note: No immediate logging to database
+        // Logging will happen only after receiving confirmation SMS via SmsHandler
+        Toast.makeText(this, "$logAction command sent. Waiting for confirmation...", Toast.LENGTH_SHORT).show()
     }
 
     private fun updatePumpStatus() {
@@ -144,5 +156,17 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "SMS permission denied. App may not work properly.", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    private fun showClearDataLogDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Clear Data Log")
+            .setMessage("Are you sure you want to clear all data logs? This action cannot be undone.")
+            .setPositiveButton("Yes") { _, _ ->
+                databaseHelper.deleteAllLogs()
+                Toast.makeText(this, "Data log cleared successfully", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("No", null)
+            .show()
     }
 }
